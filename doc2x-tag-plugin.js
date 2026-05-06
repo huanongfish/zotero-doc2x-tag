@@ -98,14 +98,26 @@ Doc2XTagPlugin = {
       this.scanAndTag(window).catch((e) => this.log(`scan error: ${e}`));
     });
     toolsPopup.appendChild(menuItem);
-    this.windowStates.set(window, { menuItem });
-    this.log("tools menu item added");
+
+    const menuItemAll = doc.createXULElement("menuitem");
+    menuItemAll.id = "doc2x-tag-scan-all-menuitem";
+    menuItemAll.setAttribute("label", `Doc2X: scan ALL library ${this.config.tag}`);
+    menuItemAll.addEventListener("command", () => {
+      this.scanAllLibrary(window).catch((e) => this.log(`scan-all error: ${e}`));
+    });
+    toolsPopup.appendChild(menuItemAll);
+
+    this.windowStates.set(window, { menuItem, menuItemAll });
+    this.log("tools menu items added");
   },
 
   removeFromWindow(window) {
     const state = this.windowStates.get(window);
-    if (state && state.menuItem && state.menuItem.parentNode) {
-      state.menuItem.parentNode.removeChild(state.menuItem);
+    if (state) {
+      for (const key of ["menuItem", "menuItemAll"]) {
+        const el = state[key];
+        if (el && el.parentNode) el.parentNode.removeChild(el);
+      }
     }
     this.windowStates.delete(window);
   },
@@ -153,6 +165,45 @@ Doc2XTagPlugin = {
 
     const msg =
       `Scope: ${scope}\n` +
+      `Scanned: ${scanned}\n` +
+      `Newly tagged: ${tagged}\n` +
+      `Already tagged: ${alreadyTagged}`;
+    this.log(msg.replace(/\n/g, " | "));
+    Services.prompt.alert(window, "Doc2X Tag", msg);
+  },
+
+  async scanAllLibrary(window) {
+    const lib = Zotero.Libraries.userLibrary;
+    const allItems = await Zotero.Items.getAll(lib.id, false, false, true);
+
+    let tagged = 0;
+    let alreadyTagged = 0;
+    let scanned = 0;
+    for (const item of allItems) {
+      if (!item || item.isNote() || item.isAttachment()) continue;
+      scanned++;
+      const noteIDs = item.getNotes() || [];
+      let hasDoc2x = false;
+      for (const nid of noteIDs) {
+        const note = Zotero.Items.get(nid);
+        if (!note) continue;
+        if (this.isDoc2xNote(note.getField("title") || "")) {
+          hasDoc2x = true;
+          break;
+        }
+      }
+      if (!hasDoc2x) continue;
+      if (item.getTags().some((t) => t.tag === this.config.tag)) {
+        alreadyTagged++;
+        continue;
+      }
+      item.addTag(this.config.tag);
+      await item.saveTx();
+      tagged++;
+    }
+
+    const msg =
+      `Scope: full library\n` +
       `Scanned: ${scanned}\n` +
       `Newly tagged: ${tagged}\n` +
       `Already tagged: ${alreadyTagged}`;
