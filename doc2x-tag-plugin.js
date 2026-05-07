@@ -15,27 +15,24 @@ Doc2XTagPlugin = {
     manuscripts: {
       "NS": "Nature Sustainability",
     },
+    // U+FE0F (VS-16) after each circled digit requests emoji presentation,
+    // which is what makes Zotero render the character as a badge glyph
+    // (same mechanism as Ⓜ️ = U+24C2 + U+FE0F).
     levels: [
-      { num: "①", desc: "核心论据 — 必引" },
-      { num: "②", desc: "重要参考 — 很可能引" },
-      { num: "③", desc: "有用背景 — 可能引" },
-      { num: "④", desc: "低优先级 — 暂时用不上" },
-      { num: "⑤", desc: "存档备查 — 基本不引" },
+      { num: "①️", desc: "核心论据 — 必引" },
+      { num: "②️", desc: "重要参考 — 很可能引" },
+      { num: "③️", desc: "有用背景 — 可能引" },
+      { num: "④️", desc: "低优先级 — 暂时用不上" },
+      { num: "⑤️", desc: "存档备查 — 基本不引" },
     ],
 
     // ── tag color scheme ────────────────────────────────────────────────────
-    // Colors auto-assigned on startup (only if tag not already colored).
-    // Position determines left-to-right order in the item list.
-    // Level colors use the circled-number as the visible glyph (Zotero 9
-    // renders the first non-ASCII character of the tag name as the badge).
     tagColors: [
-      // importance levels: position 1–5, circled-number first so Zotero renders it as badge glyph
-      { tag: "①NS", color: "#e52207", position: 1 },
-      { tag: "②NS", color: "#f57800", position: 2 },
-      { tag: "③NS", color: "#e8c100", position: 3 },
-      { tag: "④NS", color: "#7d9db5", position: 4 },
-      { tag: "⑤NS", color: "#aaaaaa", position: 5 },
-      // doc2x MD tag: position 6
+      { tag: "①️NS", color: "#e52207", position: 1 },
+      { tag: "②️NS", color: "#f57800", position: 2 },
+      { tag: "③️NS", color: "#e8c100", position: 3 },
+      { tag: "④️NS", color: "#7d9db5", position: 4 },
+      { tag: "⑤️NS", color: "#aaaaaa", position: 5 },
       { tag: "Ⓜ️",   color: "#2369bd", position: 6 },
     ],
   },
