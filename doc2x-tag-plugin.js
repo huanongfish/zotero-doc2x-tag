@@ -15,25 +15,24 @@ Doc2XTagPlugin = {
     manuscripts: {
       "NS": "Nature Sustainability",
     },
-    // U+FE0F (VS-16) after each circled digit requests emoji presentation,
-    // which is what makes Zotero render the character as a badge glyph
-    // (same mechanism as Ⓜ️ = U+24C2 + U+FE0F).
+    // ❶–❺ = Dingbat Negative Circled Digits (U+2776–U+277A):
+    // solid filled circles, same visual weight as Ⓜ️, renders at full badge size.
     levels: [
-      { num: "①️", desc: "核心论据 — 必引" },
-      { num: "②️", desc: "重要参考 — 很可能引" },
-      { num: "③️", desc: "有用背景 — 可能引" },
-      { num: "④️", desc: "低优先级 — 暂时用不上" },
-      { num: "⑤️", desc: "存档备查 — 基本不引" },
+      { num: "❶", desc: "核心论据 — 必引" },
+      { num: "❷", desc: "重要参考 — 很可能引" },
+      { num: "❸", desc: "有用背景 — 可能引" },
+      { num: "❹", desc: "低优先级 — 暂时用不上" },
+      { num: "❺", desc: "存档备查 — 基本不引" },
     ],
 
     // ── tag color scheme ────────────────────────────────────────────────────
     tagColors: [
-      { tag: "①️NS", color: "#e52207", position: 1 },
-      { tag: "②️NS", color: "#f57800", position: 2 },
-      { tag: "③️NS", color: "#e8c100", position: 3 },
-      { tag: "④️NS", color: "#7d9db5", position: 4 },
-      { tag: "⑤️NS", color: "#aaaaaa", position: 5 },
-      { tag: "Ⓜ️",   color: "#2369bd", position: 6 },
+      { tag: "❶NS", color: "#e52207", position: 1 },
+      { tag: "❷NS", color: "#f57800", position: 2 },
+      { tag: "❸NS", color: "#e8c100", position: 3 },
+      { tag: "❹NS", color: "#7d9db5", position: 4 },
+      { tag: "❺NS", color: "#aaaaaa", position: 5 },
+      { tag: "Ⓜ️",  color: "#2369bd", position: 6 },
     ],
   },
 
@@ -336,16 +335,21 @@ Doc2XTagPlugin = {
     return count;
   },
 
-  // Builds a Map from every known old tag format → current tag format.
+  // Builds a Map from every known old tag format → current ❶NS-style tag.
+  // Covers all historical formats: NS:①, ①NS, ①️NS → ❶NS etc.
   _buildImportanceRenameMap() {
+    // parallel arrays: old circled/thin variants → new bold dingbat variant
+    const oldNums  = ["①", "②", "③", "④", "⑤"];
+    const newNums  = ["❶", "❷", "❸", "❹", "❺"];
     const map = new Map();
     for (const prefix of Object.keys(this.config.manuscripts)) {
-      for (const { num } of this.config.levels) {
-        const base = num.replace(/️/g, ""); // strip VS-16 to get plain circled digit
-        const newTag = `${num}${prefix}`;
-        map.set(`${prefix}:${base}`, newTag); // e.g. NS:① → ①️NS
-        map.set(`${base}${prefix}`, newTag);  // e.g. ①NS  → ①️NS
-      }
+      oldNums.forEach((old, i) => {
+        const bold = newNums[i];
+        const newTag = `${bold}${prefix}`;
+        map.set(`${prefix}:${old}`,   newTag); // NS:①
+        map.set(`${old}${prefix}`,    newTag); // ①NS
+        map.set(`${old}️${prefix}`, newTag); // ①️NS
+      });
     }
     return map;
   },
