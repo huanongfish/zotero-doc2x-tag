@@ -153,8 +153,24 @@ Doc2XTagPlugin = {
       if (!window.ZoteroPane) continue;
       this.addToWindow(window);
     }
-    // Run after windows are ready so Zotero.Tags API is fully available
-    this.ensureTagColors().catch((e) => this.log(`ensureTagColors error: ${e}`));
+    // Auto-migrate old tag formats then apply colors; fast path skips if nothing to do.
+    this._autoMigrate().catch((e) => this.log(`autoMigrate error: ${e}`));
+  },
+
+  async _autoMigrate() {
+    const libID = Zotero.Libraries.userLibrary.id;
+    const renameMap = this._buildImportanceRenameMap();
+    // Fast check: does any old-format tag exist? (in-memory lookup, no DB query)
+    const needsMigration = [...renameMap.keys()].some(
+      (old) => Zotero.Tags.getID(libID, old) !== false
+    );
+    if (needsMigration) {
+      this.log("old importance tags detected — auto-migrating…");
+      const allItems = await Zotero.Items.getAll(libID, false, false, true);
+      const n = await this.migrateImportanceTags(allItems);
+      this.log(`auto-migrated ${n} item(s)`);
+    }
+    await this.ensureTagColors();
   },
 
   removeFromAllWindows() {
