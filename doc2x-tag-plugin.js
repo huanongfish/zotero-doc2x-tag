@@ -135,10 +135,9 @@ Doc2XTagPlugin = {
 
   async ensureTagColors() {
     const libID = Zotero.Libraries.userLibrary.id;
-    // getColors returns a Map: tagName → { color, position }
-    const existing = Zotero.Tags.getColors(libID);
+    // ALWAYS overwrite (no skip-if-existing). Stale color/position state from
+    // earlier plugin versions otherwise persists and breaks badge rendering.
     for (const { tag, color, position } of this.config.tagColors) {
-      if (existing.has(tag)) continue; // respect manual overrides
       try {
         await Zotero.Tags.setColor(libID, tag, color, position);
         this.log(`color set: ${tag} → ${color} @${position}`);
@@ -146,6 +145,52 @@ Doc2XTagPlugin = {
         this.log(`setColor failed for ${tag}: ${e}`);
       }
     }
+  },
+
+  // Removes color entries AND purges old-format tags from the library entirely.
+  // Returns { removedColors, purgedTags, missingFromLibrary }.
+  async cleanupHistoricalTags() {
+    const libID = Zotero.Libraries.userLibrary.id;
+    const historical = this._collectHistoricalTagNames();
+    let removedColors = 0, purgedTags = 0;
+    const colors = Zotero.Tags.getColors(libID);
+    for (const tag of historical) {
+      if (colors.has(tag)) {
+        try {
+          await Zotero.Tags.setColor(libID, tag, false);
+          removedColors++;
+        } catch (e) { this.log(`remove color failed for ${tag}: ${e}`); }
+      }
+    }
+    for (const tag of historical) {
+      const tagID = Zotero.Tags.getID(libID, tag);
+      if (tagID !== false) {
+        try {
+          await Zotero.Tags.removeFromLibrary(libID, [tagID]);
+          purgedTags++;
+        } catch (e) { this.log(`purge failed for ${tag}: ${e}`); }
+      }
+    }
+    await this.ensureTagColors();
+    return { removedColors, purgedTags };
+  },
+
+  // Returns full list of historical importance tag names from every past plugin version.
+  _collectHistoricalTagNames() {
+    const out = [];
+    const oldNums = ["①","②","③","④","⑤"];
+    const oldBold = ["❶","❷","❸","❹","❺"];
+    for (const prefix of Object.keys(this.config.manuscripts)) {
+      for (const n of oldNums) {
+        out.push(`${prefix}:${n}`);    // v0.x: NS:①
+        out.push(`${n}${prefix}`);     // v0.7: ①NS
+        out.push(`${n}️${prefix}`);  // v0.8/0.9: ①️NS (with VS-16)
+      }
+      for (const n of oldBold) {
+        out.push(`${n}${prefix}`);     // v0.10: ❶NS
+      }
+    }
+    return out;
   },
 
   addToAllWindows() {
@@ -214,6 +259,24 @@ Doc2XTagPlugin = {
       );
       toolsPopup.appendChild(mi3);
       els.push(mi3);
+
+      const mi4 = doc.createXULElement("menuitem");
+      mi4.id = "doc2x-tag-cleanup-menuitem";
+      mi4.setAttribute("label", "Doc2X: cleanup historical tags + reset colors");
+      mi4.addEventListener("command", () =>
+        this.cleanupAndReport(window).catch((e) => this.log(`cleanup error: ${e}`))
+      );
+      toolsPopup.appendChild(mi4);
+      els.push(mi4);
+
+      const mi5 = doc.createXULElement("menuitem");
+      mi5.id = "doc2x-tag-diag-menuitem";
+      mi5.setAttribute("label", "Doc2X: show tag color diagnostics");
+      mi5.addEventListener("command", () =>
+        this.showDiagnostics(window).catch((e) => this.log(`diag error: ${e}`))
+      );
+      toolsPopup.appendChild(mi5);
+      els.push(mi5);
     }
 
     // ── Right-click context menu ───────────────────────────────────────────
@@ -309,6 +372,42 @@ Doc2XTagPlugin = {
     const msg = `Scope: full library\nScanned: ${scanned}\nNewly tagged: ${tagged}\nAlready tagged: ${alreadyTagged}`;
     this.log(msg.replace(/\n/g, " | "));
     Services.prompt.alert(window, "Doc2X Tag", msg);
+  },
+
+  async cleanupAndReport(window) {
+    const libID = Zotero.Libraries.userLibrary.id;
+    // First migrate any remaining old-format item tags so we don't lose data
+    const allItems = await Zotero.Items.getAll(libID, false, false, true);
+    const migrated = await this.migrateImportanceTags(allItems);
+    const { removedColors, purgedTags } = await this.cleanupHistoricalTags();
+    const msg = `Cleanup complete:\n` +
+      `Items migrated: ${migrated}\n` +
+      `Old color entries removed: ${removedColors}\n` +
+      `Old tags purged from library: ${purgedTags}\n` +
+      `Current colors re-applied: ${this.config.tagColors.length}`;
+    this.log(msg.replace(/\n/g, " | "));
+    Services.prompt.alert(window, "Doc2X Tag", msg);
+  },
+
+  async showDiagnostics(window) {
+    const libID = Zotero.Libraries.userLibrary.id;
+    const colors = Zotero.Tags.getColors(libID);
+    const lines = ["Current colored tags in library:", ""];
+    // Sort by position
+    const entries = [...colors.entries()].sort(
+      (a, b) => (a[1].position || 99) - (b[1].position || 99)
+    );
+    for (const [tag, info] of entries) {
+      const codes = [...tag].map((c) => "U+" + c.codePointAt(0).toString(16).toUpperCase().padStart(4, "0")).join(" ");
+      lines.push(`pos ${info.position}  "${tag}"  ${info.color}  [${codes}]`);
+    }
+    lines.push("", "Configured colors (this plugin):");
+    for (const { tag, color, position } of this.config.tagColors) {
+      const codes = [...tag].map((c) => "U+" + c.codePointAt(0).toString(16).toUpperCase().padStart(4, "0")).join(" ");
+      const matches = colors.has(tag) ? "✓ in library" : "✗ MISSING";
+      lines.push(`pos ${position}  "${tag}"  ${color}  [${codes}]  ${matches}`);
+    }
+    Services.prompt.alert(window, "Doc2X Tag — Diagnostics", lines.join("\n"));
   },
 
   async migrateScoped(window) {
