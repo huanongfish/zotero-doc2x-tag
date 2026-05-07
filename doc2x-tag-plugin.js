@@ -29,12 +29,12 @@ Doc2XTagPlugin = {
     // Level colors use the circled-number as the visible glyph (Zotero 9
     // renders the first non-ASCII character of the tag name as the badge).
     tagColors: [
-      // importance levels: position 1–5, prominent colors
-      { tag: "NS:①", color: "#e52207", position: 1 },
-      { tag: "NS:②", color: "#f57800", position: 2 },
-      { tag: "NS:③", color: "#e8c100", position: 3 },
-      { tag: "NS:④", color: "#7d9db5", position: 4 },
-      { tag: "NS:⑤", color: "#aaaaaa", position: 5 },
+      // importance levels: position 1–5, circled-number first so Zotero renders it as badge glyph
+      { tag: "①NS", color: "#e52207", position: 1 },
+      { tag: "②NS", color: "#f57800", position: 2 },
+      { tag: "③NS", color: "#e8c100", position: 3 },
+      { tag: "④NS", color: "#7d9db5", position: 4 },
+      { tag: "⑤NS", color: "#aaaaaa", position: 5 },
       // doc2x MD tag: position 6
       { tag: "Ⓜ️",   color: "#2369bd", position: 6 },
     ],
@@ -47,7 +47,11 @@ Doc2XTagPlugin = {
   },
 
   importanceTags(prefix) {
-    return this.config.levels.map((l) => `${prefix}:${l.num}`);
+    return this.config.levels.map((l) => `${l.num}${prefix}`);
+  },
+
+  makeTag(prefix, num) {
+    return `${num}${prefix}`;
   },
 
   // ── init / notifier ────────────────────────────────────────────────────────
@@ -107,7 +111,7 @@ Doc2XTagPlugin = {
     );
     if (!items.length) return;
     const allTags = this.importanceTags(prefix);
-    const newTag = `${prefix}:${levelNum}`;
+    const newTag = `${levelNum}${prefix}`;
     for (const item of items) {
       for (const t of allTags) item.removeTag(t);
       item.addTag(newTag);
