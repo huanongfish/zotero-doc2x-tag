@@ -12,8 +12,6 @@ Doc2XTagPlugin = {
     notePrefixes: ["原文MD_doc2x", "原文md_doc2x", "parse_"],
 
     // ── manuscript importance tags ──────────────────────────────────────────
-    // Add new manuscripts here as projects grow.
-    // Format: { prefix: "display label" }
     manuscripts: {
       "NS": "Nature Sustainability",
     },
@@ -23,6 +21,22 @@ Doc2XTagPlugin = {
       { num: "③", desc: "有用背景 — 可能引" },
       { num: "④", desc: "低优先级 — 暂时用不上" },
       { num: "⑤", desc: "存档备查 — 基本不引" },
+    ],
+
+    // ── tag color scheme ────────────────────────────────────────────────────
+    // Colors auto-assigned on startup (only if tag not already colored).
+    // Position determines left-to-right order in the item list.
+    // Level colors use the circled-number as the visible glyph (Zotero 9
+    // renders the first non-ASCII character of the tag name as the badge).
+    tagColors: [
+      // importance levels: position 1–5, prominent colors
+      { tag: "NS:①", color: "#e52207", position: 1 },
+      { tag: "NS:②", color: "#f57800", position: 2 },
+      { tag: "NS:③", color: "#e8c100", position: 3 },
+      { tag: "NS:④", color: "#7d9db5", position: 4 },
+      { tag: "NS:⑤", color: "#aaaaaa", position: 5 },
+      // doc2x MD tag: position 6
+      { tag: "Ⓜ️",   color: "#2369bd", position: 6 },
     ],
   },
 
@@ -117,11 +131,30 @@ Doc2XTagPlugin = {
 
   // ── window management ──────────────────────────────────────────────────────
 
+  // ── tag color auto-assignment ──────────────────────────────────────────────
+
+  async ensureTagColors() {
+    const libID = Zotero.Libraries.userLibrary.id;
+    // getColors returns a Map: tagName → { color, position }
+    const existing = Zotero.Tags.getColors(libID);
+    for (const { tag, color, position } of this.config.tagColors) {
+      if (existing.has(tag)) continue; // respect manual overrides
+      try {
+        await Zotero.Tags.setColor(libID, tag, color, position);
+        this.log(`color set: ${tag} → ${color} @${position}`);
+      } catch (e) {
+        this.log(`setColor failed for ${tag}: ${e}`);
+      }
+    }
+  },
+
   addToAllWindows() {
     for (const window of Zotero.getMainWindows()) {
       if (!window.ZoteroPane) continue;
       this.addToWindow(window);
     }
+    // Run after windows are ready so Zotero.Tags API is fully available
+    this.ensureTagColors().catch((e) => this.log(`ensureTagColors error: ${e}`));
   },
 
   removeFromAllWindows() {

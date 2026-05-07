@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Doc2X Tag",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Auto-adds the M-circle tag to a parent item when a doc2x or parse child note is added.",
   "homepage_url": "https://github.com/huanongfish/zotero-doc2x-tag",
   "icons": {
