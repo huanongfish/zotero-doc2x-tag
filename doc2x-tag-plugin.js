@@ -184,7 +184,7 @@ Doc2XTagPlugin = {
 
       const mi2 = doc.createXULElement("menuitem");
       mi2.id = "doc2x-tag-scan-all-menuitem";
-      mi2.setAttribute("label", `Doc2X: scan ALL library ${this.config.doc2xTag}`);
+      mi2.setAttribute("label", `Doc2X: scan ALL library ${this.config.doc2xTag} + migrate tags`);
       mi2.addEventListener("command", () =>
         this.scanAllLibrary(window).catch((e) => this.log(`scan-all error: ${e}`))
       );
@@ -282,9 +282,46 @@ Doc2XTagPlugin = {
     const lib = Zotero.Libraries.userLibrary;
     const allItems = await Zotero.Items.getAll(lib.id, false, false, true);
     const { tagged, alreadyTagged, scanned } = await this._doScan(allItems);
-    const msg = `Scope: full library\nScanned: ${scanned}\nNewly tagged: ${tagged}\nAlready tagged: ${alreadyTagged}`;
+    const migrated = await this.migrateImportanceTags(allItems);
+    await this.ensureTagColors();
+    let msg = `Scope: full library\nScanned: ${scanned}\nNewly tagged: ${tagged}\nAlready tagged: ${alreadyTagged}`;
+    if (migrated > 0) msg += `\nImportance tags migrated: ${migrated}`;
     this.log(msg.replace(/\n/g, " | "));
     Services.prompt.alert(window, "Doc2X Tag", msg);
+  },
+
+  // Renames old-format importance tags (NS:① or ①NS) → current format (①️NS).
+  // Returns count of items updated.
+  async migrateImportanceTags(items) {
+    const renameMap = this._buildImportanceRenameMap();
+    let count = 0;
+    for (const item of items) {
+      if (!item || item.isNote() || item.isAttachment()) continue;
+      const tags = item.getTags().map((t) => t.tag);
+      const toRename = tags.filter((t) => renameMap.has(t));
+      if (!toRename.length) continue;
+      for (const old of toRename) {
+        item.removeTag(old);
+        item.addTag(renameMap.get(old));
+      }
+      await item.saveTx();
+      count++;
+    }
+    return count;
+  },
+
+  // Builds a Map from every known old tag format → current tag format.
+  _buildImportanceRenameMap() {
+    const map = new Map();
+    for (const prefix of Object.keys(this.config.manuscripts)) {
+      for (const { num } of this.config.levels) {
+        const base = num.replace(/️/g, ""); // strip VS-16 to get plain circled digit
+        const newTag = `${num}${prefix}`;
+        map.set(`${prefix}:${base}`, newTag); // e.g. NS:① → ①️NS
+        map.set(`${base}${prefix}`, newTag);  // e.g. ①NS  → ①️NS
+      }
+    }
+    return map;
   },
 
   async _doScan(items) {
