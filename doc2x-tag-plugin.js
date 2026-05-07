@@ -184,12 +184,21 @@ Doc2XTagPlugin = {
 
       const mi2 = doc.createXULElement("menuitem");
       mi2.id = "doc2x-tag-scan-all-menuitem";
-      mi2.setAttribute("label", `Doc2X: scan ALL library ${this.config.doc2xTag} + migrate tags`);
+      mi2.setAttribute("label", `Doc2X: scan ALL library ${this.config.doc2xTag}`);
       mi2.addEventListener("command", () =>
         this.scanAllLibrary(window).catch((e) => this.log(`scan-all error: ${e}`))
       );
       toolsPopup.appendChild(mi2);
       els.push(mi2);
+
+      const mi3 = doc.createXULElement("menuitem");
+      mi3.id = "doc2x-tag-migrate-menuitem";
+      mi3.setAttribute("label", "Doc2X: migrate importance tags (collection/selected)");
+      mi3.addEventListener("command", () =>
+        this.migrateScoped(window).catch((e) => this.log(`migrate error: ${e}`))
+      );
+      toolsPopup.appendChild(mi3);
+      els.push(mi3);
     }
 
     // ── Right-click context menu ───────────────────────────────────────────
@@ -282,10 +291,27 @@ Doc2XTagPlugin = {
     const lib = Zotero.Libraries.userLibrary;
     const allItems = await Zotero.Items.getAll(lib.id, false, false, true);
     const { tagged, alreadyTagged, scanned } = await this._doScan(allItems);
-    const migrated = await this.migrateImportanceTags(allItems);
+    const msg = `Scope: full library\nScanned: ${scanned}\nNewly tagged: ${tagged}\nAlready tagged: ${alreadyTagged}`;
+    this.log(msg.replace(/\n/g, " | "));
+    Services.prompt.alert(window, "Doc2X Tag", msg);
+  },
+
+  async migrateScoped(window) {
+    const ZP = window.ZoteroPane;
+    let items = [];
+    let scope = "";
+    const collection = ZP.getSelectedCollection();
+    if (collection) {
+      const ids = collection.getChildItems(false, false);
+      items = ids.map((it) => (typeof it === "object" ? it : Zotero.Items.get(it)));
+      scope = `collection "${collection.name}"`;
+    } else {
+      items = ZP.getSelectedItems();
+      scope = `${items.length} selected item(s)`;
+    }
+    const migrated = await this.migrateImportanceTags(items);
     await this.ensureTagColors();
-    let msg = `Scope: full library\nScanned: ${scanned}\nNewly tagged: ${tagged}\nAlready tagged: ${alreadyTagged}`;
-    if (migrated > 0) msg += `\nImportance tags migrated: ${migrated}`;
+    const msg = `Scope: ${scope}\nItems checked: ${items.length}\nImportance tags migrated: ${migrated}`;
     this.log(msg.replace(/\n/g, " | "));
     Services.prompt.alert(window, "Doc2X Tag", msg);
   },
